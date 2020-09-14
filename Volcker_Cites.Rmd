@@ -1,0 +1,211 @@
+---
+title: "Citations in the Volcker Rule"
+author: "Steven Rashin"
+date: "9/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F,cache = F, message = F)
+library(tidyverse)
+library(xml2)
+library(dplyr)
+library(purrr)
+library(kableExtra)
+```
+
+## Purpose 
+
+## Data
+
+This data is from <https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml>
+
+```{r Show Footnotes, echo=TRUE, cache=TRUE}
+fr <- "https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml"
+
+# Extract footnotes 
+all_footnotes <- xml_text( xml_find_all( fr %>% read_xml(), "//FTNT" ) )
+
+# Show examples of footnotes 
+footnotes_in_data_frame <- all_footnotes %>% 
+  str_squish() %>% 
+  tibble::enframe(value = "text",  name = "id") 
+
+```
+
+The footnotes are stored in the XML on the Federal Register API.^[<https://www.federalregister.gov/developers/documentation/api/v1>]  There are several types of footnotes:^[To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively]
+
+1. `r all_footnotes[100]`
+  + This text is the footnote from Commenters argued, for example, that an overly broad definition of trading account may cause traditional bank activities important to safety and soundness of a banking entity to fall within the prohibition on proprietary trading to the detriment of banking organizations, customers, and financial markets.
+2. `r all_footnotes[548]`
+  + "As discussed above, several commenters stated that the proposed rule would impact a banking entity's ability to engage in market making-related activity. Many of these commenters represented that, as a result, the proposed exemption would likely result in reduced liquidity ... reduced price discovery or price transparency,
+3. `r all_footnotes[500]`
+  + "The statute specifically permits banking entities to continue to provide these beneficial services to their clients, customers, and counterparties."
+
+We care about two types of citations, citations of the form "Org" and "Org (Commenter said ...)" 
+
+```{r Citation setup, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+
+# Pattern in this rule is that commenters are in comments that begin with "see"
+only_cited_commenters <- footnotes_in_data_frame[grepl(pattern = "see", x = footnotes_in_data_frame$text, ignore.case = T),]
+
+# Separate into 64 columns, the 64 is because splitting into n columns proved not doable
+# Clear out see and see e.g, to better get at the first organization and get rid of periods so Goldman. and Goldman are the same
+
+# get maximum number of semi colons in a line
+max_cols <- 1 + max(str_count(string = only_cited_commenters$text, pattern = ";"))
+
+only_cited_commenters$text <- gsub(x = only_cited_commenters$text,
+     pattern = "See|See, e\\.g\\.|^\\d{1,}|, e\\.g\\., |See also|See also,|\\.|,\\s{1}", 
+     replacement = "", ignore.case = T) 
+
+separate_orgs <- only_cited_commenters %>% 
+  separate(text, ";",into = paste("Org", 1:max_cols, sep = "_"), fill = "right")
+
+#get rid of whitespace that's either leading, trailing, or double spaced inside
+separate_orgs[] <- lapply(separate_orgs, str_squish)
+  
+# now get count.  first apply table function to all columns
+count_by_column <- separate_orgs %>% map(table)
+
+# now unlist all columns
+count_by_column_together <- unlist(count_by_column, use.names = T)
+
+# The formatting is messed up - only the integers are columns, the actual names are a "name" function
+# AND have column prefixes that we want to 86
+ids_and_freqs_by_col <- data.frame(names(count_by_column_together), count_by_column_together, stringsAsFactors = F)
+row.names(ids_and_freqs_by_col) <- NULL
+names(ids_and_freqs_by_col) <- c("Org", "Freq")
+
+#Get rid of unneccary ids like id.1356
+ids_and_freqs_by_col <- ids_and_freqs_by_col[!grepl(pattern = "^id\\.\\d{1,}$", x = ids_and_freqs_by_col$Org, ignore.case = F),]
+
+# See if we can separate (Feb 2014) from (LOTS OF TEXT...).  If there are more than 20 characters
+# after the first parenthesis, the get rid of the parenthesis 
+
+# Now make Org_1BoA and Org_2BoA same thing
+ids_and_freqs_by_col$Org <- gsub(x = ids_and_freqs_by_col$Org,
+     pattern = "^Org_\\d{1,}\\.", 
+     replacement = "", ignore.case = T) 
+
+# Now sum by group so BoA 45 and BoA 30 become BoA 75
+ids_and_freqs_by_col <- ids_and_freqs_by_col %>% 
+  mutate(
+        #Get rid of everything after the last parenthesis 
+        Org = gsub("(\\)).*","\\1",Org),
+        Org = str_squish(Org)) %>%
+  group_by(Org) %>% 
+  summarise(Frequency = sum(Freq))
+
+
+# separete out SIFMA (Feb 2017) from "Alfred Brock (stating there is no such thing as a “sophisticated party”)"
+ids_and_freqs_by_col <- ids_and_freqs_by_col %>% 
+  mutate(first_paren = unlist(lapply(X = gregexpr(pattern = "\\(", text = Org), FUN = min)),
+         # if no parenthesis (gregexpr value =1, make sure string is at max length of the string)\
+         org_len = nchar(Org),
+         first_paren = ifelse(first_paren == -1, org_len, first_paren),
+         total_length_string_after_first_paren = nchar(substr(x = Org, start = first_paren, stop = org_len)),
+         comments_on_comments = ifelse(total_length_string_after_first_paren > 30, 1, 0),
+         # if more than 10 words before a parenthesis, don't count this as a detailed comment 
+         comments_on_comments = ifelse(qdap::word_count(substr(x = Org,start = 1, stop = first_paren-1))> 20, 0, comments_on_comments),
+         Org = ifelse(total_length_string_after_first_paren > 10, str_squish(substr(Org, start = 1, stop = first_paren-1)), str_squish(Org)),
+         Org = ifelse(nchar(Org)==0, "No Org", Org)
+      ) %>% 
+  group_by(Org) %>% 
+  summarise(Frequency = sum(Frequency),
+            Detailed_Mentions = sum(comments_on_comments))
+```
+
+```{r test above conditions, eval = F, echo = F}
+
+# get detailed comments to only include cited
+num = grep(pattern = "A primary dealer is a firm that trades a sovereign government's obligations directly with the sovereign", x = ids_and_freqs_by_col$Org)
+txt = ids_and_freqs_by_col[num,1] %>% pull()
+first_paren = unlist(lapply(X = gregexpr(pattern = "\\(", text = txt), FUN = min))
+first_paren = ifelse(first_paren == -1, nchar(txt),first_paren)
+total_length_string_after_first_paren = nchar(substr(x = txt,start = first_paren, stop = nchar(txt)))
+ifelse(total_length_string_after_first_paren > 30, 1, 0)
+
+# if you have more than 10 words before a parenthesis don't count it in comments on comments
+comments_on_comments = ifelse(qdap::word_count(substr(x = txt,start = 1, stop = first_paren-1))> 10, 0, comments_on_comments)
+comments_on_comments
+# idea where you get rid of EVERYTHING
+
+```
+
+## Who Comments?
+
+There are two main types of citations, citations that just cite the commenter (see 1 in the list above) and comments that either quote the commenter directly or summarize their points (see 2 supra).  I define detailed comments as comments followed by parenthesis with over 30 characters.  Note that since the XML contains errors, there are a number of comments with one citation that should not be on this list. 
+
+```{r Top 100, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+# Show top 10 commenters
+knitr::kable(ids_and_freqs_by_col %>% 
+               dplyr::select(Org, Frequency) %>% 
+               arrange(desc(Frequency)) %>% top_n(100), 
+             col.names = c("Organization","Total Cites")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "400px")
+
+```
+
+```{r Top 100 Detailed, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+# Show top 100 commenters with detailed mentions
+knitr::kable(ids_and_freqs_by_col %>% 
+               dplyr::select(Org, Detailed_Mentions) %>% 
+               arrange(desc(Detailed_Mentions)) %>% top_n(100),
+             col.names = c("Organization","Detailed Cites")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "400px")
+
+```
+
+## Distribution of Citations
+
+```{r Distribution,  echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+#Plot by frequency, All
+ggplot(ids_and_freqs_by_col, aes(x=Frequency)) + 
+  geom_histogram(binwidth=5) + 
+  ggtitle("Distribution of All Citations") +
+  xlab("Citations") + ylab("Count") + 
+  geom_vline(xintercept = mean(ids_and_freqs_by_col$Frequency),
+             linetype=4, colour="red") +
+  theme(
+    plot.title = element_text(size=14, face="bold",hjust = 0.5),
+    axis.title.x = element_text(size=14, face="bold"),
+    axis.title.y = element_text(size=14, face="bold"),
+    strip.text.x = element_text(size=10, face="bold"),
+    axis.text = element_text(size=14, face="bold"),
+    legend.position = "none"
+  )
+
+#Plot by frequency, More than 5 appearences
+ggplot(ids_and_freqs_by_col %>% filter(Frequency > 4), aes(x=Frequency)) + 
+  geom_histogram(binwidth=5) + 
+  ggtitle("Distribution of Orgs. Cited 5+ Times") +
+  xlab("Citations") + ylab("Count") + 
+  geom_vline(xintercept = mean(ids_and_freqs_by_col$Frequency),
+             linetype=4, colour="red") +
+  theme(
+    plot.title = element_text(size=14, face="bold",hjust = 0.5),
+    axis.title.x = element_text(size=14, face="bold"),
+    axis.title.y = element_text(size=14, face="bold"),
+    strip.text.x = element_text(size=10, face="bold"),
+    axis.text = element_text(size=14, face="bold"),
+    legend.position = "none"
+  )
+
+```
+
+## Limits of this Approach 
+
+This basic approach to extracting commenters is not without drawbacks.  Briefly scrolling through the comments that were only cited once will show the various ways this approach fails for some comments.  The primary driver of the errors is inconsistent formatting (e.g., omitting the ; between commenters or omitting the parenthesis showing where a commenter name ends).
+
+```{r limits,  echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5, class.output="scroll-100"}
+# Show limits of regular expressions 
+knitr::kable(ids_and_freqs_by_col %>% 
+               dplyr::select(Org, Frequency) %>% 
+               top_n(-10)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "400px")
+```
+
