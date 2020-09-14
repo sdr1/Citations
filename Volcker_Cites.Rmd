@@ -22,6 +22,7 @@ This project analyzes who the Federal Reserve is citing in the Volcker Rule.
 ```{r note, eval=FALSE, cache=FALSE, echo=FALSE}
 #https://pages.github.com/
 #https://github.com/kbroman/testhtmlpage
+#https://rstudio-pubs-static.s3.amazonaws.com/444395_76727eaf9c774fa8bf932bed16500a00.html
 ```
 ## Data
 
@@ -43,9 +44,9 @@ footnotes_in_data_frame <- all_footnotes %>%
 The footnotes are stored in the XML on the Federal Register API.^[<https://www.federalregister.gov/developers/documentation/api/v1>]  There are several types of footnotes:^[To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively]
 
 1. `r all_footnotes[100]`
-  + This text is the footnote from Commenters argued, for example, that an overly broad definition of trading account may cause traditional bank activities important to safety and soundness of a banking entity to fall within the prohibition on proprietary trading to the detriment of banking organizations, customers, and financial markets.
+  + This text of the footnote refers to the following text in the body of the rule: "Commenters argued, for example, that an overly broad definition of trading account may cause traditional bank activities important to safety and soundness of a banking entity to fall within the prohibition on proprietary trading to the detriment of banking organizations, customers, and financial markets."
 2. `r all_footnotes[548]`
-  + "As discussed above, several commenters stated that the proposed rule would impact a banking entity's ability to engage in market making-related activity. Many of these commenters represented that, as a result, the proposed exemption would likely result in reduced liquidity ... reduced price discovery or price transparency,
+  + "As discussed above, several commenters stated that the proposed rule would impact a banking entity's ability to engage in market making-related activity. Many of these commenters represented that, as a result, the proposed exemption would likely result in reduced liquidity ... reduced price discovery or price transparency,"
 3. `r all_footnotes[500]`
   + "The statute specifically permits banking entities to continue to provide these beneficial services to their clients, customers, and counterparties."
 
@@ -223,6 +224,7 @@ knitr::kable(ids_and_freqs_by_col %>%
                dplyr::select(Org, Frequency) %>% 
                top_n(-10)) %>%
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  scroll_box(width = "100%", height = "400px")
+  column_spec(1, width = "20em") %>%
+  scroll_box(width = "100%", height = "400px") 
 ```
 
