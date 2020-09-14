@@ -114,8 +114,10 @@ ids_and_freqs_by_col <- ids_and_freqs_by_col %>%
          total_length_string_after_first_paren = nchar(substr(x = Org, start = first_paren, stop = org_len)),
          comments_on_comments = ifelse(total_length_string_after_first_paren > 30, 1, 0),
          # if more than 10 words before a parenthesis, don't count this as a detailed comment 
-         comments_on_comments = ifelse(qdap::word_count(substr(x = Org,start = 1, stop = first_paren-1))> 20, 0, comments_on_comments),
-         Org = ifelse(total_length_string_after_first_paren > 10, str_squish(substr(Org, start = 1, stop = first_paren-1)), str_squish(Org)),
+         # Keep this rule out for now, found examples where this isn't true See 
+         # To the extent that an AP for an ETF is able to meet the terms of the underwriting exemption for its activityit may be able to retain ETF shares that it created if it had a reasonable expectation of buying interest in the ETF shares and engages in reasonable efforts to sell the ETF shares SIFMA et al (Prop Trading)
+         # comments_on_comments = ifelse(qdap::word_count(substr(x = Org,start = 1, stop = first_paren-1))> 20, 0, comments_on_comments),
+         Org = ifelse(total_length_string_after_first_paren > 20, str_squish(substr(Org, start = 1, stop = first_paren-1)), str_squish(Org)),
          Org = ifelse(nchar(Org)==0, "No Org", Org)
       ) %>% 
   group_by(Org) %>% 
@@ -124,18 +126,27 @@ ids_and_freqs_by_col <- ids_and_freqs_by_col %>%
 ```
 
 ```{r test above conditions, eval = F, echo = F}
+num = grep(pattern = "SIFMA et al \\(Prop Trading\\)", x = ids_and_freqs_by_col$Org, ignore.case = T)
+
+Org = ids_and_freqs_by_col$Org[num]
 
 # get detailed comments to only include cited
-num = grep(pattern = "A primary dealer is a firm that trades a sovereign government's obligations directly with the sovereign", x = ids_and_freqs_by_col$Org)
-txt = ids_and_freqs_by_col[num,1] %>% pull()
-first_paren = unlist(lapply(X = gregexpr(pattern = "\\(", text = txt), FUN = min))
-first_paren = ifelse(first_paren == -1, nchar(txt),first_paren)
-total_length_string_after_first_paren = nchar(substr(x = txt,start = first_paren, stop = nchar(txt)))
-ifelse(total_length_string_after_first_paren > 30, 1, 0)
+first_paren = unlist(lapply(X = gregexpr(pattern = "\\(", text = Org), FUN = min))
+         # if no parenthesis (gregexpr value =1, make sure string is at max length of the string)\
+org_len = nchar(Org)
 
-# if you have more than 10 words before a parenthesis don't count it in comments on comments
-comments_on_comments = ifelse(qdap::word_count(substr(x = txt,start = 1, stop = first_paren-1))> 10, 0, comments_on_comments)
-comments_on_comments
+first_paren = ifelse(first_paren == -1, org_len, first_paren)
+
+total_length_string_after_first_paren = nchar(substr(x = Org, start = first_paren, stop = org_len))
+
+comments_on_comments = ifelse(total_length_string_after_first_paren > 30, 1, 0)
+
+# if more than 10 words before a parenthesis, don't count this as a detailed comment 
+comments_on_comments = ifelse(qdap::word_count(substr(x = Org,start = 1, stop = first_paren-1))> 20, 0, comments_on_comments)
+
+Org = ifelse(total_length_string_after_first_paren > 20, str_squish(substr(Org, start = 1, stop = first_paren-1)), str_squish(Org))
+
+Org = ifelse(nchar(Org)==0, "No Org", Org)
 # idea where you get rid of EVERYTHING
 ```
 
