@@ -20,7 +20,8 @@ library(qdap)
 This project analyzes who the Federal Reserve is citing in the Volcker Rule. 
 
 ```{r note, eval=FALSE, cache=FALSE, echo=FALSE}
-https://pages.github.com/
+#https://pages.github.com/
+#https://github.com/kbroman/testhtmlpage
 ```
 ## Data
 
