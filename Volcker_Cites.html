@@ -2561,7 +2561,8 @@ ggplot(ids_and_freqs_by_col %&gt;% filter(Frequency &gt; 4), aes(x=Frequency)) +
 <pre class="r"><code># Show limits of regular expressions 
 knitr::kable(ids_and_freqs_by_col %&gt;% 
                dplyr::select(Org, Frequency) %&gt;% 
-               top_n(-10)) %&gt;%
+               top_n(-10),
+             col.names = c(&quot;Organization&quot;,&quot;Cites&quot;)) %&gt;%
   kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;)) %&gt;%
   column_spec(1, width = &quot;20em&quot;) %&gt;%
   scroll_box(width = &quot;100%&quot;, height = &quot;400px&quot;) </code></pre>
@@ -2570,10 +2571,10 @@ knitr::kable(ids_and_freqs_by_col %&gt;%
 <thead>
 <tr>
 <th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
-Org
+Organization
 </th>
 <th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
-Frequency
+Cites
 </th>
 </tr>
 </thead>

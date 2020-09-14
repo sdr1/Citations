@@ -222,7 +222,8 @@ This basic approach to extracting commenters is not without drawbacks.  Briefly 
 # Show limits of regular expressions 
 knitr::kable(ids_and_freqs_by_col %>% 
                dplyr::select(Org, Frequency) %>% 
-               top_n(-10)) %>%
+               top_n(-10),
+             col.names = c("Organization","Cites")) %>%
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
   column_spec(1, width = "20em") %>%
   scroll_box(width = "100%", height = "400px") 
