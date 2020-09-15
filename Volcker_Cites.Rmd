@@ -41,7 +41,7 @@ footnotes_in_data_frame <- all_footnotes %>%
 
 ```
 
-The footnotes are stored in the XML on the Federal Register API.^[<https://www.federalregister.gov/developers/documentation/api/v1>]  There are several types of footnotes:^[To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively]
+The footnotes are stored in the XML on the Federal Register API.^[<https://www.federalregister.gov/developers/documentation/api/v1>]  There are several types of footnotes:^[To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively]  
 
 1. `r all_footnotes[100]`
   + This text of the footnote refers to the following text in the body of the rule: "Commenters argued, for example, that an overly broad definition of trading account may cause traditional bank activities important to safety and soundness of a banking entity to fall within the prohibition on proprietary trading to the detriment of banking organizations, customers, and financial markets."
@@ -50,7 +50,13 @@ The footnotes are stored in the XML on the Federal Register API.^[<https://www.f
 3. `r all_footnotes[500]`
   + "The statute specifically permits banking entities to continue to provide these beneficial services to their clients, customers, and counterparties."
 
-We care about two types of citations, citations of the form "Org" and "Org (Commenter said ...)" 
+For this project we are interested in the first two types, since they directly cite commenters. Since citations just mentining a commenter name and citatoins discussing the content of the commenter's comment are different, I separate these two types of comments in the analysis below.  I define detailed comments as comments followed by parenthesis with over 30 characters.   
+
+Note, however, that since the XML does not separate commenters consistently, there are a number of text blocks with one citation that should not be on this list because they are not citations but are blocks of text with the same formatting as citations (see [the section on limits](#limits-of-this-approach) for a more detailed explanation).  Expanding this approach to use on other joint SEC/Federal Reserve rules would require the help of research assistants as, unlike most SEC rules, there is no dictionary that maps abbreviations to commenters.  See, for example the following citation from the SEC's Conflict Minerals rule which regulates the use of minerals from the Democratic Republic of Congo, among other places:
+
+> 40 Among the foreign officials to provide comment letters was the DRC’s Minister of Mines. See letters from Martin Kabwelulu, Minister of Mines, Democratic Republic of the Congo (July 15, 2011) (“DRC Ministry of Mines I”); Martin Kabwelulu, Minister of Mines, Democratic Republic of the Congo (Oct. 15, 2011) (“DRC Ministry of Mines II”); and Martin Kabwelulu, Minister of Mines, Democratic Republic of the Congo (Nov. 8, 2011) (“DRC Ministry of Mines III”).
+
+In the Volcker Rule, by contrast, readers are left to assume "BoA" is the Bank of America rather than the Bank of Austria or Azerbaijan.  
 
 ```{r Citation setup, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
 
@@ -103,7 +109,7 @@ ids_and_freqs_by_col <- ids_and_freqs_by_col %>%
         Org = gsub("(\\)).*","\\1",Org),
         Org = str_squish(Org)) %>%
   group_by(Org) %>% 
-  summarise(Frequency = sum(Freq))
+  dplyr::summarise(Frequency = sum(Freq))
 
 
 # separete out SIFMA (Feb 2017) from "Alfred Brock (stating there is no such thing as a “sophisticated party”)"
@@ -114,6 +120,7 @@ ids_and_freqs_by_col <- ids_and_freqs_by_col %>%
          first_paren = ifelse(first_paren == -1, org_len, first_paren),
          total_length_string_after_first_paren = nchar(substr(x = Org, start = first_paren, stop = org_len)),
          comments_on_comments = ifelse(total_length_string_after_first_paren > 30, 1, 0),
+         comments_on_comments_big = ifelse(total_length_string_after_first_paren > 200, 1, 0),
          # if more than 10 words before a parenthesis, don't count this as a detailed comment 
          # Keep this rule out for now, found examples where this isn't true See 
          # To the extent that an AP for an ETF is able to meet the terms of the underwriting exemption for its activityit may be able to retain ETF shares that it created if it had a reasonable expectation of buying interest in the ETF shares and engages in reasonable efforts to sell the ETF shares SIFMA et al (Prop Trading)
@@ -122,8 +129,9 @@ ids_and_freqs_by_col <- ids_and_freqs_by_col %>%
          Org = ifelse(nchar(Org)==0, "No Org", Org)
       ) %>% 
   group_by(Org) %>% 
-  summarise(Frequency = sum(Frequency),
-            Detailed_Mentions = sum(comments_on_comments))
+  dplyr::summarise(Frequency = sum(Frequency),
+            Detailed_Mentions = sum(comments_on_comments),
+            Long_Detailed_Mentions = sum(comments_on_comments_big))
 ```
 
 ```{r test above conditions, eval = F, echo = F}
@@ -151,12 +159,12 @@ Org = ifelse(nchar(Org)==0, "No Org", Org)
 # idea where you get rid of EVERYTHING
 ```
 
-## Who Comments?
+## Who Is Cited Most Frequently?
 
-There are two main types of citations, citations that just cite the commenter (see 1 in the list above) and comments that either quote the commenter directly or summarize their points (see 2 supra).  I define detailed comments as comments followed by parenthesis with over 30 characters.  Note that since the XML contains errors, there are a number of comments with one citation that should not be on this list. 
+The most frequently cited commenters are, predominantly financial firms such as Bank of America, Goldman Sachs, and JP Morgan Chase.  Note that these firms are represented more than once, through multiple letters and throught trade associations such as SIFMA, ICI, and the Chamber of Commerce.     
 
 ```{r Top 100, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
-# Show top 10 commenters
+# Show top 100 commenters
 knitr::kable(ids_and_freqs_by_col %>% 
                dplyr::select(Org, Frequency) %>% 
                arrange(desc(Frequency)) %>% top_n(100), 
@@ -166,16 +174,33 @@ knitr::kable(ids_and_freqs_by_col %>%
 
 ```
 
+Interestingly, the commenter most frequently cited with an explanation after the citation is the group Occupy Wall Street.  However, Occupy is quickly followed by large financial firms.  Note that most of these citations appear to be brief summaries as when the definition of detailed cite changes from 30 to 100 characters, Occupy loses the vast majority of the citations. 
+
 ```{r Top 100 Detailed, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
 # Show top 100 commenters with detailed mentions
 knitr::kable(ids_and_freqs_by_col %>% 
                dplyr::select(Org, Detailed_Mentions) %>% 
                arrange(desc(Detailed_Mentions)) %>% top_n(100),
-             col.names = c("Organization","Detailed Cites")) %>%
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+             col.names = c("Organization","Detailed Cites"),
+             table.attr = "style='width:30%;'") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),full_width = F) %>%
   scroll_box(width = "100%", height = "400px")
 
 ```
+
+
+```{r Top 100 Long Cites, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+# Show top 100 commenters with longer detailed mentions
+knitr::kable(ids_and_freqs_by_col %>% 
+               dplyr::select(Org, Long_Detailed_Mentions) %>% 
+               arrange(desc(Long_Detailed_Mentions)) %>% top_n(10),
+             col.names = c("Organization","Long Cites"),
+             table.attr = "style='width:30%;'") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),full_width = T) %>%
+  column_spec(1, bold = F, border_right = T) 
+
+```
+
 
 ## Distribution of Citations
 
@@ -216,16 +241,17 @@ ggplot(ids_and_freqs_by_col %>% filter(Frequency > 4), aes(x=Frequency)) +
 
 ## Limits of this Approach 
 
-This basic approach to extracting commenters is not without drawbacks.  Briefly scrolling through the comments that were only cited once will show the various ways this approach fails for some comments.  The primary driver of the errors is inconsistent formatting (e.g., omitting the ; between commenters or omitting the parenthesis showing where a commenter name ends).
+This basic approach to extracting commenters is not without drawbacks.  Briefly scrolling through the comments that were only cited once will show the various ways this approach fails for some comments.  The primary driver of the errors is inconsistent formatting (e.g., omitting the semicolon between commenters or omitting the parenthesis showing where a commenter name ends).^[Note that there's a bug in the interaction between kable and top_n(-n) where kable and top(n) the former wraps text and the latter does not.]
 
-```{r limits,  echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5, class.output="scroll-100"}
-# Show limits of regular expressions 
+```{r Problems, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+# Show limits
 knitr::kable(ids_and_freqs_by_col %>% 
-               dplyr::select(Org, Frequency) %>% 
-               top_n(-10),
-             col.names = c("Organization","Cites")) %>%
+               dplyr::select(Org, Detailed_Mentions) %>%
+               arrange(Detailed_Mentions) %>%
+               top_n(100),
+             col.names = c("Organization","Detailed Cites")) %>%
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  column_spec(1, width = "20em") %>%
-  scroll_box(width = "100%", height = "400px") 
+  scroll_box(width = "100%", height = "400px")
+
 ```
 
