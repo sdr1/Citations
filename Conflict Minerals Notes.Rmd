@@ -1,0 +1,109 @@
+---
+title: "Conflict Minerals Notes"
+author: "Steven Rashin"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+Section 1502 of the Dodd Frank Act^[Page 839 of <https://www.congress.gov/111/plaws/publ203/PLAW-111publ203.pdf>] requires the SEC to adopt rules to mitigate the use of minerals that finance conflict in the Democratic Republic of the Congo or adjoining countries.  These minerals (columbite-tantalite (coltan), cassiterite, gold, wolframite) are used in the construction of electronic capacitors as the minerals allow an electrical charge to be stored in a small capacitor.^[See <https://eepower.com/capacitor-guide/types/tantalum-capacitor/#>]  The Conflict Minerals Rule requires organizations ("issuers") that make products with the minerals described above to annually disclose (via a public report to the SEC)^[Form SD can be found here: <https://www.sec.gov/files/formsd.pdf> and the reports can be found here: <https://sec.report/Form/SD> or by searching the SEC's EDGAR filinds and looking for form SD in the Filings column.] whether they use minerals from the Democratic Republic of the Congo or adjoining countires.  The report must contain information on the organization's "due dilligance on the minerals' source and chain of custody."  The organization must also use an "independent private sector" audit of the report in accordance with Comptroller General standards.  The report must list products that are not "DRC conflict free."  The purpose of the reports is to help "end the human rights abuses in the DRC caused by the conflict" by using "the securities laws disclosure requirements to bring greater public awareness of the source of issuers' conflict minerals and to promote the exercise of due diligence on conflict mineral supply chains."^[Of course, if it takes someone with a PhD in bureaucracy 30 minutes to just find disclosure reports, the chance of these reports making a difference is, unfortunately, very low.]
+
+Corporations are required to use a three part test:
+1. Whether the company uses convered minerals 
+2. Whether these minerals originated in the DRC
+3. Whether these minerals were used to finance conflict in the DRC
+
+IF the respose to the first two are "yes" then the company must file Form SD with the SEC. Corporations are supposed to declare whether their products are "DRC conflict free" or "not DRC conflict free."  Not all corporations, however, make such a declaration.  For example, Apple's 2019 report (discussed below) does not do this.
+
+Links:
+
+* A detailed summary <https://media.squirepattonboggs.com/pdf/compliance/Summary-of-Conflict-Minerals-Rule.pdf>
+* Final Rule <https://www.sec.gov/rules/final/2012/34-67716.pdf>
+* Reginfo metadata <https://www.reginfo.gov/public/do/eAgendaViewRule?pubId=201210&RIN=3235-AK84>
+
+## Apple's 2019 Disclosure 
+
+Apple's 2019 report can be found at <https://www.sec.gov/Archives/edgar/data/320193/000119312520026822/d877299dex101.htm>.  Note that the report cannot conclusively say that Macs and iPhones are not made without conflict free minerals as Apple notes "[i]n 2019, Apple directed its suppliers to remove from its supply chain 18 smelters and refiners that were not willing to participate in, or complete, a Third Party Audit or that did not otherwise meet Apple’s requirements for the responsible sourcing of minerals." Further, on page 11 they note that "Apple does not have sufficient information to conclusively determine the countries of origin of the 3TG in all of its products; however, based on the information provided by Apple’s suppliers, smelters, and refiners as well as from Third Party Audit programs, Apple believes that the 3TG contained in its products originate from the countries listed in Annex II, as well as from recycled and scrap sources."  In Annex II, Apple notes that it gets minerals from, among other countries, Burundi, the Democratic Republic of the Congo, Rwanda, Tanzania, Uganga, and Iran.
+
+## Top Issues in the Report
+
+1. Compliance costs 
+  * "As discussed throughout this release, we are adopting final rules designed to provide flexibility to issuers to reduce their compliance costs."
+
+2. What is a conflict mineral?
+  * Beyond the statute, do derivatives of conflict minerals count as conflict minerals?  Yes, the minerals and the 3Ts (tantalum, tin, and tungsten)
+  
+3. Who has to file a report? 
+  * Should small or foreign private issuers be exempt? The SEC says no.
+
+There may be an algorithmic way to pick up which are the top issues - figure out which section cites commenters the most.  These are clearly the issues that the commenters care about.
+
+
+<!-- 
+4.  Should the terms “contract to manufacture,” “necessary to the functionality” of a product, and “necessary to the production” of a product be defined?
+-->
+
+## Language Indicating Disagreement
+
+* "Only a few commenters"
+* "despite the suggestion by certain commentators"
+* "Other commentators disagreed with the proposed rules"
+* "However, one commentator argued that"
+* "Other commenters"
+* "We received mixed comments"
+* "with some commentators opposed to"
+* "commentators were mixed"
+* "However, some of these commentators suggested"
+
+## Language Indicating Change/Lack of Change
+
+Change  
+
+* Adopt* 
+* Modify*
+* In response to
+* Help address
+* Commenter + requests
+* Issues raised
+* Incorporate*
+* Refinement*
+* we are revising the proposal in the final rule
+* "We are persuaded by commentators"
+* change from the proposal
+
+Ambiguous 
+
+* We are clarifying
+
+No change
+
+* we are adopting the final rule as proposed
+* We believe the statutory language is clear
+* Nonetheless ... requires 
+* we belive ... consistent with 
+* Consistent ... (without modifying or any change word)
+* we are providing guidance regarding the interpretation 
+
+
+## Changes in Definitions
+
+<!-- “contract to manufacture,” “necessary to the functionality” of a product, and “necessary to the production” of a product are not defined -->
+
+
+In this regard, we are modifying our guidance from the proposal such that, for a conflict mineral to be considered “necessary to the production” of a product, the mineral must be both contained in the product and necessary to the product’s production. We do not consider a conflict mineral “necessary to the production” of a product if the conflict mineral is used as a catalyst, or in a similar manner in another process, that is necessary to produce the product but is not contained in that product. 
+
+Further, in a change from the proposal and in response to comments suggesting that including mining would expand the statutory mandate, the final rule does not treat an issuer that mines conflict minerals as manufacturing those minerals unless the issuer also engages in manufacturing. 
+
+In another change from the proposal, the final rule does not require an issuer to retain reviewable business records to support its reasonable country of origin conclusion, although maintenance of appropriate records may be useful in demonstrating compliance with the final rule, and may be required by any nationally or internationally recognized due diligence framework applied by an issuer. 
+
+Unlike the proposed rule, which would have required descriptions in the Conflict
+Minerals Report of an issuer’s products that “are not ‘DRC conflict free,’” where “DRC
+conflict free” means that they “do not contain minerals that directly or indirectly finance
+or benefit armed groups in the” Covered Countries, the final rule requires descriptions in
+the Conflict Minerals Report of an issuer’s products “that have not been found to be
+‘DRC conflict free.’” We believe this change will lead to more accurate disclosure
