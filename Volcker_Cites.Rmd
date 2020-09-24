@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = F,cache = F, message = F)
 library(tidyverse)
 library(xml2)
+library(XML)
 library(dplyr)
 library(purrr)
 library(kableExtra)
@@ -40,6 +41,7 @@ footnotes_in_data_frame <- all_footnotes %>%
   tibble::enframe(value = "text",  name = "id") 
 
 ```
+
 
 The footnotes are stored in the XML on the Federal Register API.^[<https://www.federalregister.gov/developers/documentation/api/v1>]  There are several types of footnotes:^[To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively]  
 
@@ -198,6 +200,91 @@ knitr::kable(ids_and_freqs_by_col %>%
              table.attr = "style='width:30%;'") %>%
   kable_styling(bootstrap_options = c("striped", "hover"),full_width = T) %>%
   column_spec(1, bold = F, border_right = T) 
+
+```
+
+## Citations by Preamble Section
+
+When studying rules we often have little idea of which issues in a rule are the most salient.  One way to assess salience is to look at the amount of times a regulator cites a commenter within a particular section since more citations are associated with more commenter interest in a subject.  The following table shows that, for the Volcker rule, commenters were most cited when talking about the economic impact of the "Underwriting Exemption" a provision of the rule that provides an exemption from the proprietary tradition prohibition for underwriting activities.^[See <https://www.federalregister.gov/d/2013-31511/p-721>]
+
+
+```{r citations by section, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
+## Idea: get all footnotes by section and then count number of citations by section to give an idea of the rough importance of sections
+## this fails so far because, while I can get all the text from the tag "HD" I can't get the text in between these tags
+fr <- "https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml"
+
+xml_tree <- XML::xmlTreeParse(fr %>% read_xml(), useInternalNodes = TRUE, trim = T, asText = T)
+xml_as_r_list <- xmlToList(xml_tree, addAttributes = TRUE, simplify = T)
+preamble_and_rule <- xml_as_r_list$SUPLINF
+
+unlisted <- unlist(preamble_and_rule)
+
+# turn into a tibble
+preamble_and_rule_as_df <- tibble(unlisted)
+names(preamble_and_rule_as_df) <- c("Text")
+
+preamble_and_rule_as_df$XML_Tags <- names(preamble_and_rule_as_df$Text)
+
+#Get rid of everything except for headers and footnote indicators
+preamble_and_rule_as_df <- preamble_and_rule_as_df %>% filter(XML_Tags %in% c("FTNT.P.SU","HD.text")) 
+
+### Get correct footnote text from above ###
+
+# footnote text gets screwed up in the above approach, so we can bring in the correct footnotes from above and slot them in correctly in the FTNT.P.SU tags
+# Pattern in this rule is that commenters are in comments that begin with "see"
+footnotes_with_see <- footnotes_in_data_frame[grepl(pattern = "see", x = footnotes_in_data_frame$text, ignore.case = T),]
+
+# relabel footnotes because at 319 a footnote gets incorrectly attributed screwing up the mapping between footnote id and footnote
+footnotes_with_see$id <- NULL
+footnotes_with_see$id <- str_match(string = footnotes_with_see$text, pattern = "^\\d{1,}")[,1]
+
+### Back to preamble dataset ###
+
+# merge datasets on Text (preamble) and id (footnotes) but - KEEP ORDER OF PREAMBLE DATASET
+preamble_and_rule_as_df$original_order <- row.names(preamble_and_rule_as_df)
+
+# merge then reorder the dataset in the original order
+preamble_and_rule_as_df <- merge(preamble_and_rule_as_df, footnotes_with_see, by.x = "Text", by.y = "id", all.x = T)
+preamble_and_rule_as_df$original_order <- as.numeric(preamble_and_rule_as_df$original_order )
+
+preamble_and_rule_as_df <- preamble_and_rule_as_df[order(preamble_and_rule_as_df$original_order),]
+
+row.names(preamble_and_rule_as_df) <- NULL
+row.names(preamble_and_rule_as_df) <- preamble_and_rule_as_df$original_order
+preamble_and_rule_as_df$original_order <- NULL
+names(preamble_and_rule_as_df) <- c("Rule_Order","XML_Tags","Footnote_Text")
+
+are_there_multiple_commenters <- str_count(string = preamble_and_rule_as_df$Footnote_Text, pattern = ";")
+
+preamble_and_rule_as_df$rough_commenters <- ifelse(are_there_multiple_commenters>0, 1+are_there_multiple_commenters, 0)
+
+# denote headers
+preamble_and_rule_as_df$headers <- as.numeric(preamble_and_rule_as_df$XML_Tags == "HD.text")
+
+# get cumulative sum of headers
+preamble_and_rule_as_df$cumulative_sum <- cumsum(preamble_and_rule_as_df$headers)
+
+preamble_and_rule_as_df <- preamble_and_rule_as_df %>% as_tibble()
+# since headers are 1 and everything else is a 0 the space between the headers is a group of the same value and, when summed gets number of citations!
+
+preamble_and_rule_as_df <- preamble_and_rule_as_df %>%
+  group_by(cumulative_sum) %>%
+  mutate(citations_in_section = sum(rough_commenters, na.rm = T)) %>%
+  ungroup() %>%
+  filter(XML_Tags == "HD.text") %>%
+  select(Rule_Order, citations_in_section)
+
+# get rid of rows with no text
+# first, get rid of leading and trailing whitespace
+# preamble_and_rule_as_df <- preamble_and_rule_as_df %>%
+#   mutate(across(where(is.character), str_trim))
+
+knitr::kable(preamble_and_rule_as_df %>%
+               arrange(desc(citations_in_section)) %>% top_n(100),
+             col.names = c("Header","Total Commenter Cites")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "400px")
+
 
 ```
 

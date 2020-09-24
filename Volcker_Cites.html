@@ -11,6 +11,7 @@
 
 <meta name="author" content="Steven Rashin" />
 
+<meta name="date" content="2020-09-24" />
 
 <title>Citations in the Volcker Rule</title>
 
@@ -373,7 +374,7 @@ summary {
 
 <h1 class="title toc-ignore">Citations in the Volcker Rule</h1>
 <h4 class="author">Steven Rashin</h4>
-<h4 class="date">9/14/2020</h4>
+<h4 class="date">September 24, 2020</h4>
 
 </div>
 
@@ -2647,6 +2648,1149 @@ Prof Duffie
 </tbody>
 </table>
 </div>
+<div id="citations-by-preamble-section" class="section level2">
+<h2>Citations by Preamble Section</h2>
+<p>When studying rules we often have little idea of which issues in a rule are the most salient. One way to assess salience is to look at the amount of times a regulator cites a commenter within a particular section since more citations are associated with more commenter interest in a subject. The following table shows that, for the Volcker rule, commenters were most cited when talking about the economic impact of the “Underwriting Exemption” a provision of the rule that provides an exemption from the proprietary tradition prohibition for underwriting activities.<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
+<pre class="r"><code>## Idea: get all footnotes by section and then count number of citations by section to give an idea of the rough importance of sections
+## this fails so far because, while I can get all the text from the tag &quot;HD&quot; I can't get the text in between these tags
+fr &lt;- &quot;https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml&quot;
+
+xml_tree &lt;- XML::xmlTreeParse(fr %&gt;% read_xml(), useInternalNodes = TRUE, trim = T, asText = T)
+xml_as_r_list &lt;- xmlToList(xml_tree, addAttributes = TRUE, simplify = T)
+preamble_and_rule &lt;- xml_as_r_list$SUPLINF
+
+unlisted &lt;- unlist(preamble_and_rule)
+
+# turn into a tibble
+preamble_and_rule_as_df &lt;- tibble(unlisted)
+names(preamble_and_rule_as_df) &lt;- c(&quot;Text&quot;)
+
+preamble_and_rule_as_df$XML_Tags &lt;- names(preamble_and_rule_as_df$Text)
+
+#Get rid of everything except for headers and footnote indicators
+preamble_and_rule_as_df &lt;- preamble_and_rule_as_df %&gt;% filter(XML_Tags %in% c(&quot;FTNT.P.SU&quot;,&quot;HD.text&quot;)) 
+
+### Get correct footnote text from above ###
+
+# footnote text gets screwed up in the above approach, so we can bring in the correct footnotes from above and slot them in correctly in the FTNT.P.SU tags
+# Pattern in this rule is that commenters are in comments that begin with &quot;see&quot;
+footnotes_with_see &lt;- footnotes_in_data_frame[grepl(pattern = &quot;see&quot;, x = footnotes_in_data_frame$text, ignore.case = T),]
+
+# relabel footnotes because at 319 a footnote gets incorrectly attributed screwing up the mapping between footnote id and footnote
+footnotes_with_see$id &lt;- NULL
+footnotes_with_see$id &lt;- str_match(string = footnotes_with_see$text, pattern = &quot;^\\d{1,}&quot;)[,1]
+
+### Back to preamble dataset ###
+
+# merge datasets on Text (preamble) and id (footnotes) but - KEEP ORDER OF PREAMBLE DATASET
+preamble_and_rule_as_df$original_order &lt;- row.names(preamble_and_rule_as_df)
+
+# merge then reorder the dataset in the original order
+preamble_and_rule_as_df &lt;- merge(preamble_and_rule_as_df, footnotes_with_see, by.x = &quot;Text&quot;, by.y = &quot;id&quot;, all.x = T)
+preamble_and_rule_as_df$original_order &lt;- as.numeric(preamble_and_rule_as_df$original_order )
+
+preamble_and_rule_as_df &lt;- preamble_and_rule_as_df[order(preamble_and_rule_as_df$original_order),]
+
+row.names(preamble_and_rule_as_df) &lt;- NULL
+row.names(preamble_and_rule_as_df) &lt;- preamble_and_rule_as_df$original_order
+preamble_and_rule_as_df$original_order &lt;- NULL
+names(preamble_and_rule_as_df) &lt;- c(&quot;Rule_Order&quot;,&quot;XML_Tags&quot;,&quot;Footnote_Text&quot;)
+
+are_there_multiple_commenters &lt;- str_count(string = preamble_and_rule_as_df$Footnote_Text, pattern = &quot;;&quot;)
+
+preamble_and_rule_as_df$rough_commenters &lt;- ifelse(are_there_multiple_commenters&gt;0, 1+are_there_multiple_commenters, 0)
+
+# denote headers
+preamble_and_rule_as_df$headers &lt;- as.numeric(preamble_and_rule_as_df$XML_Tags == &quot;HD.text&quot;)
+
+# get cumulative sum of headers
+preamble_and_rule_as_df$cumulative_sum &lt;- cumsum(preamble_and_rule_as_df$headers)
+
+preamble_and_rule_as_df &lt;- preamble_and_rule_as_df %&gt;% as_tibble()
+# since headers are 1 and everything else is a 0 the space between the headers is a group of the same value and, when summed gets number of citations!
+
+preamble_and_rule_as_df &lt;- preamble_and_rule_as_df %&gt;%
+  group_by(cumulative_sum) %&gt;%
+  mutate(citations_in_section = sum(rough_commenters, na.rm = T)) %&gt;%
+  ungroup() %&gt;%
+  filter(XML_Tags == &quot;HD.text&quot;) %&gt;%
+  select(Rule_Order, citations_in_section)
+
+# get rid of rows with no text
+# first, get rid of leading and trailing whitespace
+# preamble_and_rule_as_df &lt;- preamble_and_rule_as_df %&gt;%
+#   mutate(across(where(is.character), str_trim))
+
+knitr::kable(preamble_and_rule_as_df %&gt;%
+               arrange(desc(citations_in_section)) %&gt;% top_n(100),
+             col.names = c(&quot;Header&quot;,&quot;Total Commenter Cites&quot;)) %&gt;%
+  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;)) %&gt;%
+  scroll_box(width = &quot;100%&quot;, height = &quot;400px&quot;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; overflow-x: scroll; width:100%; ">
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Header
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+Total Commenter Cites
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments Regarding the Potential Market Impact of the Proposed Exemption
+</td>
+<td style="text-align:right;">
+346
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Comments on the Overall Scope of the Proposed Exemption
+</td>
+<td style="text-align:right;">
+278
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Permitted Trading in Foreign Government Obligations
+</td>
+<td style="text-align:right;">
+274
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Hedging of Specific Risks and Demonstrable Reduction of Risk
+</td>
+<td style="text-align:right;">
+218
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Program Requirement
+</td>
+<td style="text-align:right;">
+181
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: lower-alpha">
+<li>Proposed Quantitative Measurements and Comments on Specific Metrics
+</td>
+<td style="text-align:right;">
+175
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Permitted Trading in Municipal Securities
+</td>
+<td style="text-align:right;">
+162
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>“Covered Fund” Definition
+</td>
+<td style="text-align:right;">
+141
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: decimal">
+<li>Foreign Covered Funds
+</td>
+<td style="text-align:right;">
+125
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>General Comments on the Proposed Metrics
+</td>
+<td style="text-align:right;">
+125
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: decimal">
+<li>Section __.3: Prohibition on Proprietary Trading and Related Definitions
+</td>
+<td style="text-align:right;">
+117
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Definition of “Trading Account”
+</td>
+<td style="text-align:right;">
+109
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-roman">
+<li>Contractual Rights or Assets
+</td>
+<td style="text-align:right;">
+104
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Final Market-Making Exemption
+</td>
+<td style="text-align:right;">
+102
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: upper-roman">
+<li>Notice of Proposed Rulemaking: Summary of General Comments
+</td>
+<td style="text-align:right;">
+88
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Comments on the Proposed Rule and Approach to Implementing the Hedging Exemption
+</td>
+<td style="text-align:right;">
+87
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Loan Securitizations
+</td>
+<td style="text-align:right;">
+78
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments on the Proposed Requirement To Hold Self Out
+</td>
+<td style="text-align:right;">
+71
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: decimal">
+<li>Section __.21: Termination of Activities or Investments; Authorities for Violations
+</td>
+<td style="text-align:right;">
+71
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments on Proposed Appendix B
+</td>
+<td style="text-align:right;">
+68
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Permitted Covered Fund Activities and Investments Outside of the United States
+</td>
+<td style="text-align:right;">
+67
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-roman">
+<li>Definition of “Client,” “Customer,” and “Counterparty”
+</td>
+<td style="text-align:right;">
+66
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="22" style="list-style-type: lower-alpha">
+<li>Interdealer Trading and Trading for Price Discovery or To Test Market Depth
+</td>
+<td style="text-align:right;">
+60
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Commodity Pools
+</td>
+<td style="text-align:right;">
+56
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Permitted Covered Fund Interests and Activities by a Regulated Insurance Company
+</td>
+<td style="text-align:right;">
+55
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Rebuttable Presumption for the Short-Term Trading Account
+</td>
+<td style="text-align:right;">
+54
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments Regarding the Proposed Compensation Requirement
+</td>
+<td style="text-align:right;">
+54
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Offered for Sale or Sold to a Resident of the United States
+</td>
+<td style="text-align:right;">
+53
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Liquidity Management Activities
+</td>
+<td style="text-align:right;">
+52
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: decimal">
+<li>Municipal Securities Tender Option Bond Transactions
+</td>
+<td style="text-align:right;">
+52
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Transactions That Would Be a “Covered Transaction”
+</td>
+<td style="text-align:right;">
+52
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: decimal">
+<li>Foreign Public Funds
+</td>
+<td style="text-align:right;">
+51
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="9" style="list-style-type: decimal">
+<li>Asset-Backed Commercial Paper Conduits
+</td>
+<td style="text-align:right;">
+51
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Compliance Program Requirement
+</td>
+<td style="text-align:right;">
+49
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="5" style="list-style-type: decimal">
+<li>Limitation on Name Sharing With a Covered Fund
+</td>
+<td style="text-align:right;">
+49
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments Regarding the Proposed Near Term Customer Demand Requirement
+</td>
+<td style="text-align:right;">
+48
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Near Term Customer Demand Requirement
+</td>
+<td style="text-align:right;">
+48
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="7" style="list-style-type: lower-roman">
+<li>Acting as an Authorized Participant or Market Maker in Exchange-Traded Funds
+</td>
+<td style="text-align:right;">
+46
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-roman">
+<li>Potential Restrictions on Inventory, Increased Costs for Customers, and Other Changes to Market-Making Services
+</td>
+<td style="text-align:right;">
+46
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Definition of “Financial Instrument”
+</td>
+<td style="text-align:right;">
+45
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: decimal">
+<li>Compliance Program Requirement
+</td>
+<td style="text-align:right;">
+44
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>Routinely Standing Ready To Buy and Sell
+</td>
+<td style="text-align:right;">
+43
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: lower-alpha">
+<li>Final Rule
+</td>
+<td style="text-align:right;">
+43
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments on the Proposed Rule
+</td>
+<td style="text-align:right;">
+43
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="7" style="list-style-type: lower-alpha">
+<li>Definition of “Sponsor”
+</td>
+<td style="text-align:right;">
+43
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="5" style="list-style-type: lower-alpha">
+<li>Definition of “Ownership Interest”
+</td>
+<td style="text-align:right;">
+42
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Scope of Application
+</td>
+<td style="text-align:right;">
+41
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Rule’s Approach to Assessing Revenues
+</td>
+<td style="text-align:right;">
+40
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Joint Ventures
+</td>
+<td style="text-align:right;">
+40
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="6" style="list-style-type: lower-alpha">
+<li>Definition of “Resident of the United States”
+</td>
+<td style="text-align:right;">
+40
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="5" style="list-style-type: decimal">
+<li>Venture Capital Funds
+</td>
+<td style="text-align:right;">
+39
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Permitted Trading Activities of a Foreign Banking Entity
+</td>
+<td style="text-align:right;">
+38
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: decimal">
+<li>Repurchase and Reverse Repurchase Arrangements and Securities Lending
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Permitted Trading in U.S. Government Obligations
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="8" style="list-style-type: decimal">
+<li>Section __.6(e): Permitted Trading Activities of a Foreign Banking Entity
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Entities Regulated Under the Investment Company Act
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Definition of Loan
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: decimal">
+<li>Excluded Clearing-Related Activities of Clearinghouse Members
+</td>
+<td style="text-align:right;">
+36
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments Regarding the Proposed Near Term Customer Demand Requirement
+</td>
+<td style="text-align:right;">
+34
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-roman">
+<li>The Proposed Guidance for Determining Compliance With the Near Term Customer Demand Requirement
+</td>
+<td style="text-align:right;">
+34
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-roman">
+<li>Potential Inventory Restrictions and Differences Across Asset Classes
+</td>
+<td style="text-align:right;">
+34
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Wholly-Owned Subsidiaries
+</td>
+<td style="text-align:right;">
+34
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="7" style="list-style-type: decimal">
+<li>Section __.6(d): Permitted Trading by a Regulated Insurance Company
+</td>
+<td style="text-align:right;">
+33
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Final Rule
+</td>
+<td style="text-align:right;">
+33
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Duration of Seeding Period for New Covered Funds
+</td>
+<td style="text-align:right;">
+33
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="6" style="list-style-type: lower-alpha">
+<li>Attribution of Ownership Interests to a Banking Entity
+</td>
+<td style="text-align:right;">
+33
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: lower-roman">
+<li>Potential Definitions of “Client,” “Customer,” or “Counterparty”
+</td>
+<td style="text-align:right;">
+32
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="11" style="list-style-type: decimal">
+<li>Certain Permissible Public Welfare and Similar Funds
+</td>
+<td style="text-align:right;">
+32
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Permitted Risk-Mitigating Hedging Activities
+</td>
+<td style="text-align:right;">
+29
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Activities or Investments Solely Outside of the United States
+</td>
+<td style="text-align:right;">
+29
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: lower-alpha">
+<li>Threshold for Application of Enhanced Minimum Standards
+</td>
+<td style="text-align:right;">
+29
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>Demonstrable Analysis of Certain Factors
+</td>
+<td style="text-align:right;">
+28
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>Concerns Regarding the Workability of the Proposed Standard in Certain Markets or Asset Classes
+</td>
+<td style="text-align:right;">
+27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+B. Definition of Sponsor With Respect to Securitizations
+</td>
+<td style="text-align:right;">
+27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments on the Proposed Registration Requirement
+</td>
+<td style="text-align:right;">
+26
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-roman">
+<li>Definition of “Distribution”
+</td>
+<td style="text-align:right;">
+25
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Limitations on Investments in a Single Covered Fund (“Per-Fund Limitation”)
+</td>
+<td style="text-align:right;">
+25
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-roman">
+<li>Certain Price Appreciation-Related Profits Are an Inevitable or Important Component of Market Making
+</td>
+<td style="text-align:right;">
+24
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="10" style="list-style-type: decimal">
+<li>Covered Bonds
+</td>
+<td style="text-align:right;">
+24
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-roman">
+<li>The Proposed Indicia
+</td>
+<td style="text-align:right;">
+23
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="8" style="list-style-type: lower-roman">
+<li>Arbitrage or Other Activities That Promote Price Transparency and Liquidity
+</td>
+<td style="text-align:right;">
+23
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Disclosure
+</td>
+<td style="text-align:right;">
+23
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Approach of the Final Rule
+</td>
+<td style="text-align:right;">
+23
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-roman">
+<li>Definition of “Underwriter”
+</td>
+<td style="text-align:right;">
+22
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>Predicting Near Term Customer Demand
+</td>
+<td style="text-align:right;">
+22
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Exemption for Trading on Behalf of Customers
+</td>
+<td style="text-align:right;">
+22
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="12" style="list-style-type: decimal">
+<li>Registered Investment Companies and Excluded Entities
+</td>
+<td style="text-align:right;">
+21
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="6" style="list-style-type: decimal">
+<li>Limitation on Ownership by Directors and Employees
+</td>
+<td style="text-align:right;">
+21
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>“Solely in Connection With” Standard
+</td>
+<td style="text-align:right;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: lower-alpha">
+<li>Comments on the Proposed Treatment of Market Making-Related Hedging
+</td>
+<td style="text-align:right;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Requirement To Routinely Stand Ready To Purchase And Sell
+</td>
+<td style="text-align:right;">
+19
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="2" style="list-style-type: decimal">
+<li>Comments on the Proposed Limitation on Material Conflicts of Interest
+</td>
+<td style="text-align:right;">
+19
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Prohibition Regarding Covered Fund Activities and Investments
+</td>
+<td style="text-align:right;">
+19
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="22" style="list-style-type: lower-alpha">
+<li>Activities Conducted “in Connection With” a Distribution
+</td>
+<td style="text-align:right;">
+18
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Treatment of Market Making-Related Hedging in the Final Rule
+</td>
+<td style="text-align:right;">
+18
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: decimal">
+<li>Final Underwriting Exemption
+</td>
+<td style="text-align:right;">
+17
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="4" style="list-style-type: decimal">
+<li>Documentation Requirement
+</td>
+<td style="text-align:right;">
+17
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Underwriting and Market Making for a Covered Fund
+</td>
+<td style="text-align:right;">
+17
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Proposed Requirement To Hold Self Out
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-roman">
+<li>Treatment of Anticipatory Market Making
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="6" style="list-style-type: lower-roman">
+<li>Inventory Management
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Final Registration Requirement
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol style="list-style-type: lower-alpha">
+<li>Foreign Banking Entities Eligible for the Exemption
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="5" style="list-style-type: decimal">
+<li>Foreign Pension or Retirement Funds
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<ol start="3" style="list-style-type: lower-alpha">
+<li>Simplified Programs for Less Active Banking Entities
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+</tbody>
+</table>
+</div></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol></li>
+</ol>
+</div>
 <div id="distribution-of-citations" class="section level2">
 <h2>Distribution of Citations</h2>
 <pre class="r"><code>#Plot by frequency, All
@@ -2684,7 +3828,7 @@ ggplot(ids_and_freqs_by_col %&gt;% filter(Frequency &gt; 4), aes(x=Frequency)) +
 </div>
 <div id="limits-of-this-approach" class="section level2">
 <h2>Limits of this Approach</h2>
-<p>This basic approach to extracting commenters is not without drawbacks. Briefly scrolling through the comments that were only cited once will show the various ways this approach fails for some comments. The primary driver of the errors is inconsistent formatting (e.g., omitting the semicolon between commenters or omitting the parenthesis showing where a commenter name ends).<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
+<p>This basic approach to extracting commenters is not without drawbacks. Briefly scrolling through the comments that were only cited once will show the various ways this approach fails for some comments. The primary driver of the errors is inconsistent formatting (e.g., omitting the semicolon between commenters or omitting the parenthesis showing where a commenter name ends).<a href="#fn4" class="footnote-ref" id="fnref4"><sup>4</sup></a></p>
 <pre class="r"><code># Show limits
 knitr::kable(ids_and_freqs_by_col %&gt;% 
                dplyr::select(Org, Detailed_Mentions) %&gt;%
@@ -3875,7 +5019,8 @@ Occupy
 <ol>
 <li id="fn1"><p><a href="https://www.federalregister.gov/developers/documentation/api/v1" class="uri">https://www.federalregister.gov/developers/documentation/api/v1</a><a href="#fnref1" class="footnote-back">↩</a></p></li>
 <li id="fn2"><p>To replicate this section search the XML above for <SU>100, <SU>548, and <SU>500 respectively<a href="#fnref2" class="footnote-back">↩</a></p></li>
-<li id="fn3"><p>Note that there’s a bug in the interaction between kable and top_n(-n) where kable and top(n) the former wraps text and the latter does not.<a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn3"><p>See <a href="https://www.federalregister.gov/d/2013-31511/p-721" class="uri">https://www.federalregister.gov/d/2013-31511/p-721</a><a href="#fnref3" class="footnote-back">↩</a></p></li>
+<li id="fn4"><p>Note that there’s a bug in the interaction between kable and top_n(-n) where kable and top(n) the former wraps text and the latter does not.<a href="#fnref4" class="footnote-back">↩</a></p></li>
 </ol>
 </div>
 
