@@ -210,7 +210,6 @@ When studying rules we often have little idea of which issues in a rule are the 
 
 ```{r citations by section, echo = T, warning = F,cache = F, message = F,fig.width = 11, fig.height = 8.5}
 ## Idea: get all footnotes by section and then count number of citations by section to give an idea of the rough importance of sections
-## this fails so far because, while I can get all the text from the tag "HD" I can't get the text in between these tags
 fr <- "https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml"
 
 xml_tree <- XML::xmlTreeParse(fr %>% read_xml(), useInternalNodes = TRUE, trim = T, asText = T)

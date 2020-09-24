@@ -2652,7 +2652,6 @@ Prof Duffie
 <h2>Citations by Preamble Section</h2>
 <p>When studying rules we often have little idea of which issues in a rule are the most salient. One way to assess salience is to look at the amount of times a regulator cites a commenter within a particular section since more citations are associated with more commenter interest in a subject. The following table shows that, for the Volcker rule, commenters were most cited when talking about the economic impact of the “Underwriting Exemption” a provision of the rule that provides an exemption from the proprietary tradition prohibition for underwriting activities.<a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a></p>
 <pre class="r"><code>## Idea: get all footnotes by section and then count number of citations by section to give an idea of the rough importance of sections
-## this fails so far because, while I can get all the text from the tag &quot;HD&quot; I can't get the text in between these tags
 fr &lt;- &quot;https://www.federalregister.gov/documents/full_text/xml/2014/01/31/2013-31511.xml&quot;
 
 xml_tree &lt;- XML::xmlTreeParse(fr %&gt;% read_xml(), useInternalNodes = TRUE, trim = T, asText = T)
